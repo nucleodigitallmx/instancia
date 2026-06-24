@@ -1,0 +1,57 @@
+name: Forzar Creacion Instancia Oracle
+
+on:
+  workflow_dispatch:
+
+jobs:
+  solicitar-vps:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Codigo del repositorio
+      uses: actions/checkout@v4
+
+    - name: Instalar y Configurar OCI CLI vía Pip
+      env:
+        OCI_USER: ${{ secrets.OCI_USER_OCID }}
+        OCI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
+        OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+        OCI_REGION: "mx-monterrey-1"
+        OCI_KEY_TEXT: ${{ secrets.OCI_API_KEY }}
+      run: |
+        pip install oci-cli
+        mkdir -p ~/.oci
+        echo "$OCI_KEY_TEXT" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        
+        cat << EOF > ~/.oci/config
+        [DEFAULT]
+        user=$OCI_USER
+        fingerprint=$OCI_FINGERPRINT
+        tenancy=$OCI_TENANCY
+        region=$OCI_REGION
+        key_file=/home/runner/.oci/oci_api_key.pem
+        EOF
+        
+        chmod 600 ~/.oci/config
+
+    - name: Ejecutar Reintentos Infinitos
+      env:
+        COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+        SUBNET_ID: ${{ secrets.OCI_SUBNET_OCID }}
+        SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+      run: |
+        export PATH=$PATH:/home/runner/bin
+        
+        echo "=== Verificando si OCI CLI está disponible ==="
+        if command -v oci &> /dev/null; then
+            echo "OCI CLI está instalado en: $(which oci)"
+            oci --version
+        else
+            echo "Error: OCI CLI no se encuentra en el PATH actual."
+            echo "PATH actual: $PATH"
+        fi
+        
+        echo "=== Limpiando y ejecutando el script ==="
+        sed -i 's/\r$//' ./crear_instancia.sh
+        chmod +x ./crear_instancia.sh
+        ./crear_instancia.sh
